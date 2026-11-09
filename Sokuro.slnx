@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Sokuro/Sokuro.csproj" />
+  <Project Path="Sokuro.Generator/Sokuro.Generator.csproj" />
+</Solution>

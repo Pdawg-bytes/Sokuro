@@ -1,0 +1,64 @@
+name: Publish Sokuro
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Pack NuGet package
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            dotnet pack Sokuro.slnx -c Release -o artifacts -p:PackageVersion="${GITHUB_REF_NAME#v}"
+          else
+            dotnet pack Sokuro.slnx -c Release -o artifacts
+          fi
+
+      - name: Authenticate with NuGet
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: Pdawg
+
+      - name: Push package to NuGet Gallery
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push "artifacts/Sokuro.*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Add GitHub Packages source
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dotnet nuget add source \
+            "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER}/index.json" \
+            --name github \
+            --username "$GITHUB_ACTOR" \
+            --password "$GITHUB_TOKEN" \
+            --store-password-in-clear-text
+
+      - name: Push package to GitHub Packages
+        run: |
+          dotnet nuget push "artifacts/Sokuro.*.nupkg" \
+            --source github \
+            --skip-duplicate
